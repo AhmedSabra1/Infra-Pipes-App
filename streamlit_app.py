@@ -37,13 +37,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. Session State (القائمة المؤقتة للطباعة)
+# 2. Session State
 # ==========================================
 if 'quote_list' not in st.session_state:
     st.session_state.quote_list = []
 
 # ==========================================
-# 3. Sidebar (الإعدادات)
+# 3. Sidebar
 # ==========================================
 st.sidebar.header("⚙️ Settings")
 material_type = st.sidebar.radio("Select Material:", ("HDPE", "uPVC"), index=0)
@@ -51,7 +51,7 @@ st.sidebar.markdown("---")
 st.sidebar.info("**Eng. Ahmed Sabra**\n\n📞 +201148777463")
 
 # ==========================================
-# 4. Data Loader (بيحدث نفسه كل 30 ثانية)
+# 4. Data Loader (BUG FIX: DataType Handling)
 # ==========================================
 data_file = 'data.xlsx'
 
@@ -65,18 +65,25 @@ def load_data(file_path, sheet_name):
         if target_sheet:
             df = pd.read_excel(file_path, sheet_name=target_sheet)
             df.columns = [str(c).strip() for c in df.columns]
+            
+            # 1. حماية القطر والوزن وتأكيد إنهم أرقام
+            if 'Diameter' in df.columns:
+                df['Diameter'] = pd.to_numeric(df['Diameter'], errors='coerce').fillna(0)
+            if 'Weight' in df.columns:
+                df['Weight'] = pd.to_numeric(df['Weight'], errors='coerce').fillna(0)
+            
+            # 2. تحويل باقي الأعمدة لنصوص وحل مشكلة الـ (-)
             for col in df.columns:
-                if df[col].dtype == 'object':
+                if col not in ['Diameter', 'Weight']:
                     df[col] = df[col].astype(str).str.strip().str.upper()
-                    df[col] = df[col].replace(['NAN', 'NAT', 'NULL'], '-')
-            df['Weight'] = pd.to_numeric(df['Weight'], errors='coerce').fillna(0)
-            df.fillna("-", inplace=True)
+                    df[col] = df[col].replace(['NAN', 'NAT', 'NULL', 'NONE', '<NA>'], '-')
+                    df[col].fillna("-", inplace=True)
+                    
             return df, None
         return None, f"Sheet '{sheet_name}' not found."
     except Exception as e:
         return None, f"Error: {str(e)}"
 
-# دالة الطباعة بالعرض (Landscape)
 def create_pdf(dataframe):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), rightMargin=20, leftMargin=20, topMargin=30, bottomMargin=18)
