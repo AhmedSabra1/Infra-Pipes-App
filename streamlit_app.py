@@ -93,15 +93,11 @@ def create_pdf(dataframe, grand_total):
     elements.append(Paragraph(f"Date: {datetime.now().strftime('%Y-%m-%d')}", styles['Normal']))
     elements.append(Spacer(1, 15))
 
-    # Add Grand Total Row to PDF Table
     print_df = dataframe.copy()
-    # Format numbers for PDF display
     print_df['Unit Price (EGP/m)'] = print_df['Unit Price (EGP/m)'].apply(format_currency)
     print_df['Total (EGP)'] = print_df['Total (EGP)'].apply(format_currency)
     
     data = [print_df.columns.to_list()] + print_df.values.tolist()
-    
-    # Grand Total Row
     empty_row = [""] * (len(print_df.columns) - 2)
     data.append(empty_row + ["GRAND TOTAL:", f"{grand_total:,.2f} EGP"])
 
@@ -151,7 +147,6 @@ if df is not None:
 
     tab1, tab2 = st.tabs(["📋 1. BOQ Builder (Forward Pricing)", "🕵️ 2. Reverse Analysis"])
 
-    # --- TAB 1: BOQ BUILDER ---
     with tab1:
         st.subheader("Add Pipes to BOQ")
         with st.container(border=True):
@@ -164,7 +159,7 @@ if df is not None:
                 dia_input_str = st.text_input("Diameters (e.g. 110, 200):")
             with c3:
                 st.write("") # spacing
-                batch_qty = st.number_input("Quantity (m):", min_value=1.0, value=1.0, step=10.0, help="Will be applied to this batch")
+                batch_qty = st.number_input("Quantity (m):", min_value=1.0, value=1.0, step=10.0, help="Tip: You can add 1m now and edit quantities easily in the table below!")
 
             user_specs = {}
             if spec_cols:
@@ -208,18 +203,19 @@ if df is not None:
                                         item["Total (EGP)"] = total_price
                                         
                                         st.session_state.quote_list.append(item)
+                        # The fix for the error: Catching Exception so it doesn't block Rerun
                         st.rerun()
-                    except: st.error("❌ Invalid input in diameters.")
+                    except Exception as e:
+                        if type(e).__name__ != 'RerunException':
+                            st.error("❌ Please make sure you entered numbers only for the diameters.")
                 else: st.warning("⚠️ Please enter price and diameters.")
 
-        # --- PREVIEW & EDITING SECTION ---
         st.markdown("---")
         st.subheader("📄 Print Preview & BOQ Editor")
         
         if len(st.session_state.quote_list) > 0:
             current_df = pd.DataFrame(st.session_state.quote_list)
             
-            # 1. Bulk Update Tool
             with st.expander("🛠️ Bulk Update Prices (Apply new price to entire list)"):
                 uc1, uc2, uc3 = st.columns([1, 1, 2])
                 up_unit = uc1.radio("New Price Per:", ["Ton", "Kg"], horizontal=True, key="up_u")
@@ -233,12 +229,10 @@ if df is not None:
                         st.success("✅ Prices Updated!")
                         st.rerun()
 
-            st.caption("💡 TIP: You can edit the 'Quantity (m)' directly in the table below or select rows to delete them.")
+            st.caption("💡 TIP: Edit the 'Quantity (m)' directly in the table below! The totals will update instantly.")
             
-            # Determine which columns are NOT editable (protect calculations)
             disabled_cols = ["Material", "Diameter", "Weight (kg/m)", "Unit Price (EGP/m)", "Total (EGP)"] + spec_cols
             
-            # 2. Interactive Data Editor
             edited_df = st.data_editor(
                 current_df, 
                 num_rows="dynamic", 
@@ -247,17 +241,14 @@ if df is not None:
                 hide_index=True
             )
             
-            # 3. Recalculate Totals if Quantity changed or rows deleted
             if not edited_df.equals(current_df):
                 edited_df['Total (EGP)'] = edited_df['Unit Price (EGP/m)'] * edited_df['Quantity (m)']
                 st.session_state.quote_list = edited_df.to_dict('records')
                 st.rerun()
 
-            # 4. Grand Total Display
             grand_total = edited_df['Total (EGP)'].sum()
             st.markdown(f"<div class='grand-total'>💰 GRAND TOTAL: {grand_total:,.2f} EGP</div>", unsafe_allow_html=True)
             
-            # 5. Export Buttons
             st.markdown("<br>", unsafe_allow_html=True)
             export_df = prepare_export_df()
             ex1, ex2, ex3 = st.columns(3)
@@ -274,7 +265,6 @@ if df is not None:
         else:
             st.info("Your BOQ list is empty. Add pipes from the section above.")
 
-    # --- TAB 2: REVERSE ANALYSIS ---
     with tab2:
         st.subheader("🕵️ Find Supplier's Ton Price")
         c1, c2 = st.columns(2)
